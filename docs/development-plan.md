@@ -99,3 +99,11 @@
 - 再開時は `build-hazkey/` を一度削除してから `nix develop path:. -c bash -lc 'cmake -S hazkey-server -B build-hazkey -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build-hazkey'` を実行し、`swift build` が clang 経由で完走するかを確認。必要なら `SWIFT_COMMAND` に `-Xcc -fblocks` 等を明示する。
 - 以降も Stage 完了前の検証は **stash → clean checkout → コマンド実行 → stash pop** のフローを必ず踏む。
 - Stage 4 試行（2025-11-08 夜）：`fcitx5-hazkey/src` / `hazkey-settings` の proto 出力を `generated/` に固定して `nix build .#fcitx5-hazkey -L` を再実行。C++/Qt ビルドは通るが、Swift 側が引き続き FHS ユーザ空間（bubblewrap）に依存しており、Nix サンドボックス内では `bwrap: setting up uid map: Permission denied` → `swift build` が実行不能。根本解としては FHS を経由せず、公式 Swift ツールチェーン tarball を `patchelf --set-interpreter ... --set-rpath ...` あるいは `makeWrapper` で `LD_LIBRARY_PATH` を注入する形で直接起動できる derivation を用意すること（bubblewrap 非依存の Swift ランタイムを `hazkeySwiftToolchain` として使う）を優先する。
+
+### TODO（2025-11-08 追記）
+
+- [x] `flake.nix` に Swift 用 sysroot (`swiftSdk`) を追加し、`swiftc` ラッパーで `LD_LIBRARY_PATH` / `LIBRARY_PATH` を固定。
+- [x] `nix/package.nix`・`hazkey-server/CMakeLists.txt`・`build_swift.cmake` を更新して `SWIFT_SDK_PATH` / `LIBRARY_PATH` を正しく受け渡し。
+- [ ] SwiftPM 依存（AzooKeyKanaKanjiConverter / swift-protobuf など 8 件）を `fetchgit` / `fetchFromGitHub` で Nix ストアに取り込み、`mirrors.json` を自動生成してネットワーク不要化。
+- [ ] `nix build .#fcitx5-hazkey -L` を再実行し、Swift ビルド完走と `.build/.../hazkey-server` の取得を確認。
+- [ ] 成功ログと手順を本ドキュメントに反映し、Stage 4 コミットを作成。

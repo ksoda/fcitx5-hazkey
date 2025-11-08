@@ -40,6 +40,9 @@ endif()
 # Auto detect swift library path
 # To bypass issue swiftlang/swift#78003
 set(SWIFT_DETECTED_LIB_PATH "")
+set(SWIFT_RUNTIME_LIBRARY_PATH "${SWIFT_RUNTIME_LIBRARY_PATH}")
+set(SWIFT_SDK_PATH "${SWIFT_SDK_PATH}")
+set(SWIFT_TARGET_TRIPLE "x86_64-unknown-linux-gnu")
 if(SWIFT_EXECUTABLE)
     execute_process(
         COMMAND ${SWIFT_EXECUTABLE} -print-target-info
@@ -48,6 +51,7 @@ if(SWIFT_EXECUTABLE)
     )
     if(swift_info_result EQUAL 0)
         string(JSON SWIFT_DETECTED_LIB_PATH GET "${swift_target_info}" paths runtimeLibraryPaths 0)
+        string(JSON SWIFT_TARGET_TRIPLE GET "${swift_target_info}" target triple)
         if(SWIFT_DETECTED_LIB_PATH)
             message(STATUS "Detected Swift library path: ${SWIFT_DETECTED_LIB_PATH}")
         else()
@@ -64,10 +68,15 @@ add_custom_target(build_hazkey_server ALL
     COMMAND ${CMAKE_COMMAND}
         -DSWIFT_BUILD_TYPE=${SWIFT_BUILD_TYPE}
         -DSWIFT_EXECUTABLE=${SWIFT_EXECUTABLE}
+        -DSWIFT_BUILD_EXECUTABLE=${SWIFT_BUILD_EXECUTABLE}
         -DSWIFT_DISABLE_DEPENDENCY_CACHE=${SWIFT_DISABLE_DEPENDENCY_CACHE}
         -DSWIFT_DETECTED_LIB_PATH=${SWIFT_DETECTED_LIB_PATH}
+        -DSWIFT_RUNTIME_LIBRARY_PATH=${SWIFT_RUNTIME_LIBRARY_PATH}
+        -DSWIFT_SDK_PATH=${SWIFT_SDK_PATH}
+        -DSWIFT_TARGET_TRIPLE=${SWIFT_TARGET_TRIPLE}
         -DSWIFT_LINK_PATH=${SWIFT_LINK_PATH}
         -DSWIFT_WORK_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DSWIFT_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}
         -DLLAMA_STUB_DIR=${CMAKE_CURRENT_BINARY_DIR}/llama-stub
         -P ${CMAKE_CURRENT_SOURCE_DIR}/build_swift.cmake
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

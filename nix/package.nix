@@ -14,6 +14,8 @@
 , vulkan-headers
 , python3
 , patchelf
+, swiftRuntimeLibPaths
+, swiftSdkPath
 }:
 
 assert hazkeySwiftToolchain != null;
@@ -51,7 +53,10 @@ stdenv.mkDerivation rec {
       "-GNinja"
       "-DCMAKE_BUILD_TYPE=Release"
       "-DSWIFT_EXECUTABLE=${hazkeySwiftToolchain}/bin/swift"
+      "-DSWIFT_BUILD_EXECUTABLE=${hazkeySwiftToolchain}/bin/swift-build"
       "-DSWIFT_LINK_PATH=${swiftUnwrapped}/lib/swift/linux"
+      "-DSWIFT_RUNTIME_LIBRARY_PATH=${swiftRuntimeLibPaths}"
+      "-DSWIFT_SDK_PATH=${swiftSdkPath}"
     ]
     ;
 
