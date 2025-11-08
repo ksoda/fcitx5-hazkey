@@ -27,6 +27,8 @@ set(PROTO_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../protocol/commands.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/../protocol/config.proto
 )
+set(PROTO_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
 
 set(PROJECT_SOURCES
     main.cpp
@@ -54,54 +56,42 @@ qt_add_resources(hazkey-settings "translations"
     FILES ${QM_FILES}
 )
 
-if(Protobuf_VERSION VERSION_GREATER_EQUAL "3.15")
-    # 3.15 ~：stable proto3 optional support
-    message(STATUS "Using standard protobuf_generate (protobuf ${Protobuf_VERSION})")
-    protobuf_generate(
-        TARGET hazkey-settings
-        LANGUAGE cpp
-        PROTOS ${PROTO_FILES}
-        IMPORT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../protocol
-        PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}
-    )
-elseif(Protobuf_VERSION VERSION_GREATER_EQUAL "3.12")
-    # 3.12 ~ 3.14: build with flag. cannot use PROTOC_OPTIONS.
-    # Ubuntu 22.04: v3.12.4 (2025/8/28)
-    message(STATUS "Using manual protoc execution for proto3 optional (protobuf ${Protobuf_VERSION})")
-
-    set(PROTO_SRCS)
-    set(PROTO_HDRS)
-
-    foreach(PROTO_FILE ${PROTO_FILES})
-        get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
-        get_filename_component(PROTO_PATH ${PROTO_FILE} ABSOLUTE)
-        set(PROTO_SRC "${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME}.pb.cc")
-        set(PROTO_HDR "${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME}.pb.h")
-
-        list(APPEND PROTO_SRCS ${PROTO_SRC})
-        list(APPEND PROTO_HDRS ${PROTO_HDR})
-
-        add_custom_command(
-            OUTPUT ${PROTO_SRC} ${PROTO_HDR}
-            COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-            ARGS --cpp_out=${CMAKE_CURRENT_BINARY_DIR}
-                 --experimental_allow_proto3_optional
-                 --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../protocol
-                 ${CMAKE_CURRENT_SOURCE_DIR}/../protocol/${PROTO_NAME}.proto
-            DEPENDS ${PROTO_FILE}
-            COMMENT "Generating C++ protobuf files from ${PROTO_FILE}"
-            VERBATIM
-        )
-    endforeach()
-
-    target_sources(hazkey-settings PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
-else()
-    # ~ 3.12：no proto3 optional support
+if(Protobuf_VERSION VERSION_LESS "3.12")
     message(FATAL_ERROR "protobuf 3.12+ required for proto3 optional support. Current version: ${Protobuf_VERSION}")
 endif()
 
+set(PROTO_SRCS)
+set(PROTO_HDRS)
+set(_PROTO_OPTS)
+if(Protobuf_VERSION VERSION_LESS "3.15")
+    list(APPEND _PROTO_OPTS --experimental_allow_proto3_optional)
+endif()
+
+foreach(PROTO_FILE ${PROTO_FILES})
+    get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
+    set(PROTO_SRC "${PROTO_GEN_DIR}/${PROTO_NAME}.pb.cc")
+    set(PROTO_HDR "${PROTO_GEN_DIR}/${PROTO_NAME}.pb.h")
+
+    list(APPEND PROTO_SRCS ${PROTO_SRC})
+    list(APPEND PROTO_HDRS ${PROTO_HDR})
+
+    add_custom_command(
+        OUTPUT ${PROTO_SRC} ${PROTO_HDR}
+        COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+        ARGS --cpp_out=${PROTO_GEN_DIR}
+             ${_PROTO_OPTS}
+             --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../protocol
+             ${CMAKE_CURRENT_SOURCE_DIR}/../protocol/${PROTO_NAME}.proto
+        DEPENDS ${PROTO_FILE}
+        COMMENT "Generating C++ protobuf files from ${PROTO_FILE}"
+        VERBATIM
+    )
+endforeach()
+
+target_sources(hazkey-settings PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
+
 target_include_directories(hazkey-settings PRIVATE
-    ${CMAKE_CURRENT_BINARY_DIR}
+    ${PROTO_GEN_DIR}
     ${Protobuf_INCLUDE_DIRS}
 )
 

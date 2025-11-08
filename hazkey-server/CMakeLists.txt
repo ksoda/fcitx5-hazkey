@@ -39,47 +39,44 @@ endif()
 
 # Auto detect swift library path
 # To bypass issue swiftlang/swift#78003
-execute_process(
-    COMMAND which swift
-    OUTPUT_VARIABLE swift_path_raw
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE which_result
-)
-if(which_result EQUAL 0)
+set(SWIFT_DETECTED_LIB_PATH "")
+set(SWIFT_RUNTIME_LIBRARY_PATH "${SWIFT_RUNTIME_LIBRARY_PATH}")
+set(SWIFT_SDK_PATH "${SWIFT_SDK_PATH}")
+set(SWIFT_TARGET_TRIPLE "x86_64-unknown-linux-gnu")
+if(SWIFT_EXECUTABLE)
     execute_process(
-        COMMAND readlink -f "${swift_path_raw}"
-        OUTPUT_VARIABLE swift_path_resolved
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE readlink_result
+        COMMAND ${SWIFT_EXECUTABLE} -print-target-info
+        OUTPUT_VARIABLE swift_target_info
+        RESULT_VARIABLE swift_info_result
     )
-    if(readlink_result EQUAL 0)
-        # set relative path from swift binary
-        if("${swift_path_resolved}" MATCHES "/bin/swift[^/]*$")
-            string(REGEX REPLACE "/bin/swift[^/]*$" "" swift_base_dir "${swift_path_resolved}")
-            set(SWIFT_DETECTED_LIB_PATH "${swift_base_dir}/lib/swift/linux")
-
+    if(swift_info_result EQUAL 0)
+        string(JSON SWIFT_DETECTED_LIB_PATH GET "${swift_target_info}" paths runtimeLibraryPaths 0)
+        string(JSON SWIFT_TARGET_TRIPLE GET "${swift_target_info}" target triple)
+        if(SWIFT_DETECTED_LIB_PATH)
             message(STATUS "Detected Swift library path: ${SWIFT_DETECTED_LIB_PATH}")
         else()
-            set(SWIFT_DETECTED_LIB_PATH "")
-            message(STATUS "Resolved swift path '${swift_path_resolved}' does not end with '/bin/swift*'. SWIFT_LIB_PATH not set.")
+            message(STATUS "Unable to parse runtimeLibraryPaths from swift -print-target-info output.")
         endif()
     else()
-        set(SWIFT_DETECTED_LIB_PATH "")
-        message(WARNING "Failed to execute 'readlink -f' on '${swift_path_raw}'. SWIFT_LIB_PATH not set.")
+        message(WARNING "Failed to execute '${SWIFT_EXECUTABLE} -print-target-info' (exit ${swift_info_result}). SWIFT_LIB_PATH not set.")
     endif()
 else()
-    set(SWIFT_DETECTED_LIB_PATH "")
-    message(WARNING "Swift executable not found using 'which swift'. SWIFT_LIB_PATH not set.")
+    message(WARNING "SWIFT_EXECUTABLE is not defined; cannot detect Swift library path.")
 endif()
 
 add_custom_target(build_hazkey_server ALL
     COMMAND ${CMAKE_COMMAND}
         -DSWIFT_BUILD_TYPE=${SWIFT_BUILD_TYPE}
         -DSWIFT_EXECUTABLE=${SWIFT_EXECUTABLE}
+        -DSWIFT_BUILD_EXECUTABLE=${SWIFT_BUILD_EXECUTABLE}
         -DSWIFT_DISABLE_DEPENDENCY_CACHE=${SWIFT_DISABLE_DEPENDENCY_CACHE}
         -DSWIFT_DETECTED_LIB_PATH=${SWIFT_DETECTED_LIB_PATH}
+        -DSWIFT_RUNTIME_LIBRARY_PATH=${SWIFT_RUNTIME_LIBRARY_PATH}
+        -DSWIFT_SDK_PATH=${SWIFT_SDK_PATH}
+        -DSWIFT_TARGET_TRIPLE=${SWIFT_TARGET_TRIPLE}
         -DSWIFT_LINK_PATH=${SWIFT_LINK_PATH}
         -DSWIFT_WORK_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DSWIFT_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}
         -DLLAMA_STUB_DIR=${CMAKE_CURRENT_BINARY_DIR}/llama-stub
         -P ${CMAKE_CURRENT_SOURCE_DIR}/build_swift.cmake
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
